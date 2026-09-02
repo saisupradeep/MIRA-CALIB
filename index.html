@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="BridgeThings Modbus Telemetry & Section 1 Calibration Web App">
+    <title>BridgeThings • Modbus Meter Section 1 & Logs</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="dark-theme">
+    <!-- Main App Container -->
+    <div class="app-wrapper">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-gauge-high"></i>
+                </div>
+                <div class="brand-info">
+                    <h1 class="brand-title">BridgeThings <span>Meter Hub</span></h1>
+                    <p class="brand-subtitle">Section 1 Telemetry & Remote Logs</p>
+                </div>
+            </div>
+
+            <!-- Header Status Pills -->
+            <div class="header-badges">
+                <div id="connection-badge" class="status-pill status-disconnected">
+                    <span class="pulse-dot"></span>
+                    <span class="pill-text">Disconnected</span>
+                </div>
+                <div id="mode-badge" class="status-pill status-mode-off">
+                    <i class="fa-solid fa-lock"></i>
+                    <span class="pill-text">Read Only</span>
+                </div>
+                <button id="toggle-conn-btn" class="btn btn-icon btn-secondary" title="Connection Settings">
+                    <i class="fa-solid fa-sliders"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="app-main">
+            
+            <!-- Connection Drawer / Settings Card -->
+            <section id="connection-panel" class="card connection-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="fa-solid fa-network-wired text-accent"></i>
+                        <span>Modbus Gateway Connection</span>
+                    </div>
+                    <span class="badge-tag">TCP / Telnet / Sim</span>
+                </div>
+                <div class="card-body">
+                    <form id="connection-form" class="conn-grid">
+                        <div class="form-group">
+                            <label for="conn-type"><i class="fa-solid fa-diagram-project"></i> Protocol</label>
+                            <select id="conn-type" class="form-control">
+                                <option value="TCP" selected>Modbus TCP</option>
+                                <option value="Telnet (RTU over TCP)">Telnet (RTU over TCP)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ip-address"><i class="fa-solid fa-globe"></i> IP Address / Host</label>
+                            <input type="text" id="ip-address" class="form-control" placeholder="192.168.1.100 or domain" value="192.168.1.100" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tcp-port"><i class="fa-solid fa-hashtag"></i> Port</label>
+                            <input type="number" id="tcp-port" class="form-control" placeholder="502" value="502" min="1" max="65535" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="slave-id"><i class="fa-solid fa-fingerprint"></i> Unit / Slave ID</label>
+                            <input type="number" id="slave-id" class="form-control" placeholder="1" value="1" min="1" max="247" required>
+                        </div>
+
+                        <div class="form-group form-group-checkbox">
+                            <label class="custom-checkbox">
+                                <input type="checkbox" id="sim-mode">
+                                <span class="checkbox-mark"></span>
+                                <span class="checkbox-label"><strong>Demo / Simulation Mode</strong> (No hardware needed)</span>
+                            </label>
+                        </div>
+
+                        <div class="conn-actions">
+                            <button type="submit" id="btn-connect" class="btn btn-primary">
+                                <i class="fa-solid fa-plug"></i> Connect
+                            </button>
+                            <button type="button" id="btn-disconnect" class="btn btn-danger" disabled>
+                                <i class="fa-solid fa-power-off"></i> Disconnect
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Section 1 Telemetry Grid -->
+            <section class="section-container">
+                <div class="section-toolbar">
+                    <div class="section-heading">
+                        <h2><i class="fa-solid fa-tachograph-digital text-accent"></i> Section 1: Meter Readings</h2>
+                        <span id="last-read-time" class="timestamp-text">Last read: Never</span>
+                    </div>
+
+                    <div class="toolbar-controls">
+                        <!-- Auto Poll Switch -->
+                        <div class="poll-switch-wrapper">
+                            <label class="switch">
+                                <input type="checkbox" id="auto-poll-toggle">
+                                <span class="slider round"></span>
+                            </label>
+                            <span class="switch-label">Auto-Poll</span>
+                            <select id="poll-interval" class="form-control form-control-sm" title="Polling Interval">
+                                <option value="1000">1s</option>
+                                <option value="2000" selected>2s</option>
+                                <option value="5000">5s</option>
+                                <option value="10000">10s</option>
+                            </select>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <button id="btn-read-sec1" class="btn btn-accent" title="Read holding registers">
+                            <i class="fa-solid fa-arrows-rotate"></i> Read Section 1
+                        </button>
+                        <button id="btn-write-sec1" class="btn btn-warning" title="Write values to Section 1" disabled>
+                            <i class="fa-solid fa-pen-to-square"></i> Write Sec 1
+                        </button>
+                        <button id="btn-secret-code" class="btn btn-outline" title="Unlock Write Permissions">
+                            <i class="fa-solid fa-key"></i> Secret Code
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 8 Telemetry Cards Grid -->
+                <div class="telemetry-grid">
+                    
+                    <!-- 1. Flow Rate -->
+                    <div class="kpi-card card-glow-accent">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Flow Rate</span>
+                            <div class="kpi-icon icon-cyan"><i class="fa-solid fa-water"></i></div>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span id="val-flowRate" class="kpi-value">--</span>
+                            <span class="kpi-unit">m³/h</span>
+                        </div>
+                        <div class="kpi-footer">
+                            <span class="kpi-reg-tag">Reg 0-1 • Float32</span>
+                            <span class="kpi-trend" id="trend-flowRate"><i class="fa-solid fa-wave-square"></i> Live</span>
+                        </div>
+                    </div>
+
+                    <!-- 2. Total Volume 64-bit -->
+                    <div class="kpi-card card-glow-purple">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Total Volume (64b)</span>
+                            <div class="kpi-icon icon-purple"><i class="fa-solid fa-cubes-stacked"></i></div>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span id="val-totalVolume64" class="kpi-value">--</span>
+                            <span class="kpi-unit">m³</span>
+                        </div>
+                        <div class="kpi-footer">
+                            <span class="kpi-reg-tag">Reg 12-15 • Float64</span>
+                            <span class="kpi-trend"><i class="fa-solid fa-database"></i> High Prec.</span>
+                        </div>
+                    </div>
+
+                    <!-- 3. Forward Volume -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Forward Volume</span>
+                            <div class="kpi-icon icon-green"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span id="val-fwdVolume" class="kpi-value">--</span>
+                            <span class="kpi-unit">m³</span>
+                        </div>
+                        <div class="kpi-footer">
+                            <span class="kpi-reg-tag">Reg 4-5 • Float32</span>
+                            <span class="kpi-subtext">Cumulative Fwd</span>
+                        </div>
+                    </div>
+
+                    <!-- 4. Reverse Volume -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Reverse Volume</span>
+                            <div class="kpi-icon icon-orange"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span id="val-revVolume" class="kpi-value">--</span>
+                            <span class="kpi-unit">m³</span>
+                        </div>
+                        <div class="kpi-footer">
+                            <span class="kpi-reg-tag">Reg 6-7 • Float32</span>
+                            <span class="kpi-subtext">Cumulative Rev</span>
+                        </div>
+                    </div>
+
+                    <!-- 5. Pump Running -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Pump Running</span>
+                            <div class="kpi-icon icon-yellow"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span id="val-pumpMins" class="kpi-value">--</span>
+                            <span class="kpi-unit">mins</span>
+                        </div>
+                        <div class="kpi-footer">
+                            <span class="kpi-reg-tag">Reg 8-9 • Float32</span>
+                            <span id="pump-hrs-text" class="kpi-subtext">0.0 hrs</span>
+                        </div>
+                    </div>
+
+                    <!-- 6. Signal Strength -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Signal Strength</span>
+                            <div class="kpi-icon icon-blue"><i class="fa-solid fa-tower-broadcast"></i></div>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span id="val-signal" class="kpi-value">--</span>
+                            <span class="kpi-unit">dBm</span>
+                        </div>
+                        <div class="kpi-footer">
+                            <span class="kpi-reg-tag">Reg 10-11 • Float32</span>
+                            <span id="signal-quality-badge" class="badge-mini">RSSI</span>
+                        </div>
+                    </div>
+
+                    <!-- 7. Temp Val -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Temp Val</span>
+                            <div class="kpi-icon icon-red"><i class="fa-solid fa-temperature-half"></i></div>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span id="val-tempVal" class="kpi-value">--</span>
+                            <span class="kpi-unit">Val</span>
+                        </div>
+                        <div class="kpi-footer">
+                            <span class="kpi-reg-tag">Reg 2-3 • Float32</span>
+                            <span class="kpi-subtext">Sensor Metric</span>
+                        </div>
+                    </div>
+
+                    <!-- 8. Tamper Status -->
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Tamper Status</span>
+                            <div class="kpi-icon icon-teal"><i class="fa-solid fa-shield-halved"></i></div>
+                        </div>
+                        <div class="kpi-value-row">
+                            <span id="val-tamper" class="kpi-value">--</span>
+                            <span class="kpi-unit">(0=OK)</span>
+                        </div>
+                        <div class="kpi-footer">
+                            <span class="kpi-reg-tag">Reg 44 • Uint16</span>
+                            <span id="tamper-status-badge" class="badge-status-ok">Normal</span>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- Live Status Logs Console -->
+            <section class="section-container">
+                <div class="card terminal-card">
+                    <div class="terminal-header">
+                        <div class="terminal-title">
+                            <div class="terminal-dots">
+                                <span class="dot dot-red"></span>
+                                <span class="dot dot-yellow"></span>
+                                <span class="dot dot-green"></span>
+                            </div>
+                            <span class="terminal-heading-text"><i class="fa-solid fa-terminal text-accent"></i> Real-time Activity Logs</span>
+                            <span id="log-counter" class="badge-counter">0 events</span>
+                        </div>
+
+                        <div class="terminal-actions">
+                            <div class="log-filter-box">
+                                <select id="log-filter" class="form-control form-control-xs">
+                                    <option value="all" selected>All Levels</option>
+                                    <option value="info">Info</option>
+                                    <option value="success">Success</option>
+                                    <option value="warning">Warning</option>
+                                    <option value="error">Error</option>
+                                </select>
+                            </div>
+                            <button id="btn-autoscroll" class="btn btn-xs btn-active" title="Toggle Auto-Scroll">
+                                <i class="fa-solid fa-arrows-down-to-line"></i> Scroll
+                            </button>
+                            <button id="btn-export-logs" class="btn btn-xs btn-outline" title="Export logs as TXT">
+                                <i class="fa-solid fa-download"></i> Export
+                            </button>
+                            <button id="btn-clear-logs" class="btn btn-xs btn-danger-outline" title="Clear log terminal">
+                                <i class="fa-solid fa-trash-can"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="terminal-body" class="terminal-body">
+                        <div class="log-placeholder">
+                            <i class="fa-solid fa-circle-notch fa-spin"></i> Listening for Modbus activity logs...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>BridgeThings Telemetry Service • Render & Mobile Optimized • Modbus RTU / TCP</p>
+        </footer>
+
+    </div>
+
+    <!-- Modal 1: Secret Code Mode -->
+    <div id="modal-secret" class="modal-backdrop">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-key text-warning"></i> Write Mode Authorization</h3>
+                <button class="modal-close" data-close="modal-secret">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">
+                    Enter the manufacturer secret code to unlock write permissions on Register 30.
+                </p>
+                
+                <div class="form-group">
+                    <label for="secret-code-input">Secret Code (Hex or Decimal):</label>
+                    <input type="text" id="secret-code-input" class="form-control form-control-lg" placeholder="e.g., 0xDCBA" autocomplete="off">
+                </div>
+
+                <div class="code-shortcuts">
+                    <span class="shortcut-label">Quick Presets:</span>
+                    <button type="button" class="btn-chip" data-code="0xDCBA">
+                        <i class="fa-solid fa-lock-open text-warning"></i> 0xDCBA (Section 1 Write)
+                    </button>
+                    <button type="button" class="btn-chip" data-code="0xABCD">
+                        <i class="fa-solid fa-sliders text-cyan"></i> 0xABCD (Calibration Mode)
+                    </button>
+                    <button type="button" class="btn-chip btn-chip-danger" data-code="0">
+                        <i class="fa-solid fa-lock"></i> 0 (Disable Write)
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary modal-close-btn" data-close="modal-secret">Cancel</button>
+                <button type="button" id="btn-submit-secret" class="btn btn-warning">
+                    <i class="fa-solid fa-shield-check"></i> Apply Code
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Write Section 1 -->
+    <div id="modal-write-sec1" class="modal-backdrop">
+        <div class="modal-dialog modal-dialog-lg">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-pen-to-square text-warning"></i> Write Section 1 Meter Readings</h3>
+                <button class="modal-close" data-close="modal-write-sec1">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert-warning-banner">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <div>
+                        <strong>Section 1 Write Mode Active</strong>
+                        <p>Write holding registers to connected meter. Tamper Status (Reg 44) is read-only and will not be overwritten.</p>
+                    </div>
+                </div>
+
+                <form id="form-write-sec1" class="write-grid">
+                    <div class="form-group">
+                        <label for="write-flowRate">Flow Rate (m³/h):</label>
+                        <input type="number" step="0.001" id="write-flowRate" class="form-control" required>
+                        <span class="field-hint">Reg 0-1 (Float32)</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="write-totalVolume64">Total Volume 64b (m³):</label>
+                        <input type="number" step="0.000001" id="write-totalVolume64" class="form-control" required>
+                        <span class="field-hint">Reg 12-15 (Float64)</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="write-tempVal">Temp Val (Reg 2-3):</label>
+                        <input type="number" step="0.001" id="write-tempVal" class="form-control" required>
+                        <span class="field-hint">Reg 2-3 (Float32)</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="write-fwdVolume">Forward Volume (m³):</label>
+                        <input type="number" step="0.001" id="write-fwdVolume" class="form-control" required>
+                        <span class="field-hint">Reg 4-5 (Float32)</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="write-revVolume">Reverse Volume (m³):</label>
+                        <input type="number" step="0.001" id="write-revVolume" class="form-control" required>
+                        <span class="field-hint">Reg 6-7 (Float32)</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="write-pumpMins">Pump Running (mins):</label>
+                        <input type="number" step="0.1" id="write-pumpMins" class="form-control" required>
+                        <span class="field-hint">Reg 8-9 (Float32)</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="write-signal">Signal Strength (dBm):</label>
+                        <input type="number" step="0.1" id="write-signal" class="form-control" required>
+                        <span class="field-hint">Reg 10-11 (Float32)</span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btn-fill-current" class="btn btn-outline" title="Populate with latest read values">
+                    <i class="fa-solid fa-copy"></i> Copy Current Readings
+                </button>
+                <button type="button" class="btn btn-secondary modal-close-btn" data-close="modal-write-sec1">Cancel</button>
+                <button type="button" id="btn-submit-write-sec1" class="btn btn-warning">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Confirm & Write
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- App Script -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
